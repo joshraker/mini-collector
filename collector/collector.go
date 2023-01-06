@@ -2,11 +2,13 @@ package collector
 
 import (
 	"fmt"
-	"github.com/opencontainers/runc/libcontainer/cgroups"
-	"github.com/opencontainers/runc/libcontainer/cgroups/fs"
 	"os"
 	"syscall"
 	"time"
+
+	"github.com/opencontainers/runc/libcontainer/cgroups"
+	"github.com/opencontainers/runc/libcontainer/cgroups/fs"
+	"github.com/opencontainers/runc/libcontainer/configs"
 )
 
 var (
@@ -30,6 +32,7 @@ type collector struct {
 	cgroupPath  string
 	mountPath   string
 	dockerName  string
+	cpuQuota    configs.CpuQuota
 	statsBuffer cgroups.Stats
 	fsBuffer    syscall.Statfs_t
 	subsystems  []wrappedSubsystem
@@ -46,11 +49,11 @@ func (rc *realClock) Now() time.Time {
 	return time.Now()
 }
 
-func NewCollector(cgroupPath string, dockerName string, mountPath string) Collector {
-	return newCollector(cgroupPath, dockerName, mountPath)
+func NewCollector(cgroupPath string, dockerName string, mountPath string, cpuQuota int64) Collector {
+	return newCollector(cgroupPath, dockerName, mountPath, cpuQuota)
 }
 
-func newCollector(cgroupPath string, dockerName string, mountPath string) *collector {
+func newCollector(cgroupPath string, dockerName string, mountPath string, cpuQuota int64) *collector {
 	statsBuffer := *cgroups.NewStats()
 
 	subsystems := []wrappedSubsystem{
@@ -80,6 +83,7 @@ func newCollector(cgroupPath string, dockerName string, mountPath string) *colle
 		cgroupPath:  cgroupPath,
 		mountPath:   mountPath,
 		dockerName:  dockerName,
+		cpuQuota:    cpuQuota,
 		statsBuffer: statsBuffer,
 		fsBuffer:    syscall.Statfs_t{},
 		subsystems:  subsystems,
@@ -129,6 +133,7 @@ func (c *collector) getCgroupPoint(lastState State) (CgroupPoint, State, error) 
 	limitMemory := c.statsBuffer.MemoryStats.Usage.Limit
 
 	return CgroupPoint{
+		CpuQuota:      c.cpuQuota,
 		MilliCpuUsage: milliCpuUsage,
 		MemoryTotalMb: virtualMemory / MbInBytes,
 		MemoryRssMb:   (baseRssMemory + mappedFileMemory) / MbInBytes,
